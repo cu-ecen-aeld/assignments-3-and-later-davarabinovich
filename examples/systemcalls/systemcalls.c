@@ -9,15 +9,9 @@
 */
 bool do_system(const char *cmd)
 {
-
-/*
- * TODO  add your code here
- *  Call the system() function with the command set in the cmd
- *   and return a boolean true if the system() call completed with success
- *   or false() if it returned a failure
-*/
-
-    return true;
+	int child_process_retval;
+	child_process_retval = system(cmd);
+	return (bool)child_process_retval;
 }
 
 /**
