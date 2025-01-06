@@ -1,4 +1,13 @@
+
+#include <sys/types.h>
+#include <sys/wait.h>
+#include <unistd.h>
+#include <stdlib.h>
 #include "systemcalls.h"
+
+
+#define BOURNE_SHELL_FULL_PATH "/bin/sh"
+
 
 /**
  * @param cmd the command to execute with system()
@@ -7,7 +16,7 @@
  *   either in invocation of the system() call, or if a non-zero return
  *   value was returned by the command issued in @param cmd.
 */
-bool do_system(const char *cmd)
+bool do_system(const char * cmd)
 {
 	int child_process_retval;
 	child_process_retval = system(cmd);
@@ -30,32 +39,31 @@ bool do_system(const char *cmd)
 
 bool do_exec(int count, ...)
 {
+	bool is_succeed = true;
+	
     va_list args;
     va_start(args, count);
-    char * command[count+1];
-    int i;
-    for(i=0; i<count; i++)
-    {
+    char * command[count+1]; // +1 for NULL-termination
+    for(int i = 0; i < count; i++)
         command[i] = va_arg(args, char *);
-    }
     command[count] = NULL;
-    // this line is to avoid a compile warning before your implementation is complete
-    // and may be removed
-    command[count] = command[count];
 
-/*
- * TODO:
- *   Execute a system command by calling fork, execv(),
- *   and wait instead of system (see LSP page 161).
- *   Use the command[0] as the full path to the command to execute
- *   (first argument to execv), and use the remaining arguments
- *   as second argument to the execv() command.
- *
-*/
+	pid_t child_pid = fork();
+	int exec_retval;
+	if (child_pid == 0)
+	{
+		exec_retval = execv(command[0], &command[1]);
+		if (exec_retval == -1)
+			exit(1);
+	}
+	
+	int child_status;
+	pid_t waited_pid = waitpid(child_pid, &child_status, 0);
+	if (waited_pid == -1 || waited_pid != child_pid || WEXITSTATUS(child_status) != 0)
+		is_succeed = false;
 
     va_end(args);
-
-    return true;
+    return is_succeed;
 }
 
 /**
@@ -63,20 +71,37 @@ bool do_exec(int count, ...)
 *   This file will be closed at completion of the function call.
 * All other parameters, see do_exec above
 */
-bool do_exec_redirect(const char *outputfile, int count, ...)
+bool do_exec_redirect(const char * outputfile, int count, ...)
 {
+	bool is_succeed = true;
+	
     va_list args;
     va_start(args, count);
-    char * command[count+1];
-    int i;
-    for(i=0; i<count; i++)
-    {
+    char * command[count+4];  // +4 for -c option of shell, for NULL-termination, and for redirection
+	
+	command[0] = "-c";
+    for(int i = 1; i < count+1; i++)
         command[i] = va_arg(args, char *);
-    }
-    command[count] = NULL;
-    // this line is to avoid a compile warning before your implementation is complete
-    // and may be removed
-    command[count] = command[count];
+    command[count+1] = ">";
+    command[count+2] = (char *)outputfile;
+    command[count+3] = NULL;
+
+	pid_t child_pid = fork();
+	int exec_retval;
+	if (child_pid == 0)
+	{
+		exec_retval = execv(command[0], &command[1]);
+		if (exec_retval == -1)
+			exit(1);
+	}
+	
+	int child_status;
+	pid_t waited_pid = waitpid(child_pid, &child_status, 0);
+	if (waited_pid == -1 || waited_pid != child_pid || WEXITSTATUS(child_status) != 0)
+		is_succeed = false;
+
+    va_end(args);
+    return is_succeed;
 
 
 /*
@@ -86,8 +111,5 @@ bool do_exec_redirect(const char *outputfile, int count, ...)
  *   The rest of the behaviour is same as do_exec()
  *
 */
-
-    va_end(args);
-
-    return true;
 }
+
